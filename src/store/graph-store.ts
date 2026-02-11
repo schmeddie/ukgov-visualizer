@@ -445,10 +445,42 @@ function createSeedData(): GraphData {
   ];
 
   const links: LinkData[] = [
-    // Cabinet Office links to top-level depts
+    // Cabinet Office → all Ministerial Departments (central coordination hub)
     { source: cabinetOffice.id, target: hmTreasury.id },
+    { source: cabinetOffice.id, target: homeOffice.id },
+    { source: cabinetOffice.id, target: mod.id },
+    { source: cabinetOffice.id, target: dfe.id },
+    { source: cabinetOffice.id, target: dhsc.id },
+    { source: cabinetOffice.id, target: fcdo.id },
+    { source: cabinetOffice.id, target: moj.id },
+    { source: cabinetOffice.id, target: defra.id },
+    { source: cabinetOffice.id, target: dft.id },
+    { source: cabinetOffice.id, target: dbt.id },
+    { source: cabinetOffice.id, target: dluhc.id },
+    { source: cabinetOffice.id, target: dwp.id },
+    { source: cabinetOffice.id, target: dcms.id },
+    { source: cabinetOffice.id, target: desnz.id },
+    { source: cabinetOffice.id, target: dsit.id },
+    { source: cabinetOffice.id, target: nio.id },
+    { source: cabinetOffice.id, target: scotlandOffice.id },
+    { source: cabinetOffice.id, target: walesOffice.id },
+    { source: cabinetOffice.id, target: ago.id },
+    { source: cabinetOffice.id, target: lot.id },
+    { source: cabinetOffice.id, target: lol.id },
     { source: cabinetOffice.id, target: gld.id },
     { source: cabinetOffice.id, target: queensPrinter.id },
+
+    // UK Statistics Authority (connect to Cabinet Office)
+    { source: cabinetOffice.id, target: uksa.id },
+
+    // Supreme Court (connect to Cabinet Office as independent body)
+    { source: cabinetOffice.id, target: supremeCourt.id },
+
+    // Water Services Regulation Authority (connect via Defra)
+    { source: defra.id, target: waterServicesReg.id },
+
+    // Estyn (connect via DfE as education inspectorate)
+    { source: dfe.id, target: estyn.id },
 
     // HM Treasury
     { source: hmTreasury.id, target: hmrc.id },
