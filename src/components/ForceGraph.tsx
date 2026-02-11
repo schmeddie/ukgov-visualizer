@@ -63,6 +63,7 @@ export default function ForceGraph() {
   const paintNode = useCallback(
     (node: object, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as NodeData & { x: number; y: number };
+      if (!Number.isFinite(n.x) || !Number.isFinite(n.y)) return;
       const baseRadius = Math.sqrt(n.val) * 4;
       const isHovered = n.id === hoverNodeId;
       const radius = isHovered ? baseRadius * 1.15 : baseRadius;
@@ -132,7 +133,8 @@ export default function ForceGraph() {
   const paintLink = useCallback(
     (link: object, ctx: CanvasRenderingContext2D) => {
       const l = link as { source: { x: number; y: number }; target: { x: number; y: number } };
-      if (!l.source.x || !l.target.x) return;
+      if (!Number.isFinite(l.source.x) || !Number.isFinite(l.source.y) ||
+          !Number.isFinite(l.target.x) || !Number.isFinite(l.target.y)) return;
 
       const grad = ctx.createLinearGradient(l.source.x, l.source.y, l.target.x, l.target.y);
       grad.addColorStop(0, "rgba(99, 102, 241, 0.35)");
@@ -173,6 +175,7 @@ export default function ForceGraph() {
       nodeCanvasObject={paintNode}
       nodePointerAreaPaint={(node, color, ctx) => {
         const nd = node as NodeData & { x: number; y: number };
+        if (!Number.isFinite(nd.x) || !Number.isFinite(nd.y)) return;
         const radius = Math.sqrt(nd.val) * 4 + 6;
         ctx.beginPath();
         ctx.arc(nd.x, nd.y, radius, 0, 2 * Math.PI);
