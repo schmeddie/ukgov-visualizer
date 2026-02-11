@@ -7,12 +7,16 @@ import ForceGraph2D, {
 import { useGraphStore } from "@/store/graph-store";
 import type { NodeData, EntityType } from "@/types/graph";
 
-const TYPE_COLORS: Record<EntityType, string> = {
-  "Ministerial Department": "#3b82f6",
-  "Non-Ministerial Department": "#a855f7",
-  "Executive Agency": "#22c55e",
-  "Public Body": "#f59e0b",
+// Dual-tone gradients per entity type
+const TYPE_COLORS: Record<EntityType, { core: string; rim: string; glow: string }> = {
+  "Ministerial Department":     { core: "#6366f1", rim: "#818cf8", glow: "99,102,241" },
+  "Non-Ministerial Department": { core: "#a855f7", rim: "#c084fc", glow: "168,85,247" },
+  "Executive Agency":           { core: "#06b6d4", rim: "#22d3ee", glow: "6,182,212" },
+  "Public Body":                { core: "#f59e0b", rim: "#fbbf24", glow: "245,158,11" },
 };
+
+let hoverNodeId: string | null = null;
+let tickCount = 0;
 
 export default function ForceGraph() {
   const nodes = useGraphStore((s) => s.nodes);
@@ -32,47 +36,124 @@ export default function ForceGraph() {
 
   useEffect(() => {
     if (graphRef.current) {
-      graphRef.current.d3Force("charge")?.strength(-300);
-      graphRef.current.d3Force("link")?.distance(100);
+      graphRef.current.d3Force("charge")?.strength(-250);
+      graphRef.current.d3Force("link")?.distance(90);
     }
+  }, []);
+
+  // Tick animation for glow pulsing
+  useEffect(() => {
+    const interval = setInterval(() => {
+      tickCount++;
+    }, 50);
+    return () => clearInterval(interval);
   }, []);
 
   const handleNodeClick = useCallback(
     (node: object) => {
-      const n = node as NodeData;
-      setSelectedNode(n);
+      setSelectedNode(node as NodeData);
     },
     [setSelectedNode]
   );
 
+  const handleNodeHover = useCallback((node: object | null) => {
+    hoverNodeId = node ? (node as NodeData).id : null;
+  }, []);
+
   const paintNode = useCallback(
     (node: object, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as NodeData & { x: number; y: number };
-      const radius = Math.sqrt(n.val) * 4;
-      const color = TYPE_COLORS[n.type] || "#64748b";
+      const baseRadius = Math.sqrt(n.val) * 4;
+      const isHovered = n.id === hoverNodeId;
+      const radius = isHovered ? baseRadius * 1.15 : baseRadius;
+      const colors = TYPE_COLORS[n.type] || TYPE_COLORS["Public Body"];
 
-      // Glow
+      // Pulse factor
+      const pulse = Math.sin(tickCount * 0.04 + n.val) * 0.15 + 0.85;
+
+      // Outer glow (soft, pulsing)
+      const glowRadius = radius * 2.5 * pulse;
+      const glowGrad = ctx.createRadialGradient(n.x, n.y, radius * 0.5, n.x, n.y, glowRadius);
+      glowGrad.addColorStop(0, `rgba(${colors.glow}, ${isHovered ? 0.25 : 0.12})`);
+      glowGrad.addColorStop(1, `rgba(${colors.glow}, 0)`);
       ctx.beginPath();
-      ctx.arc(n.x, n.y, radius + 2, 0, 2 * Math.PI);
-      ctx.fillStyle = color + "33";
+      ctx.arc(n.x, n.y, glowRadius, 0, 2 * Math.PI);
+      ctx.fillStyle = glowGrad;
       ctx.fill();
 
-      // Circle
+      // Main circle with radial gradient
+      const grad = ctx.createRadialGradient(
+        n.x - radius * 0.3, n.y - radius * 0.3, radius * 0.1,
+        n.x, n.y, radius
+      );
+      grad.addColorStop(0, colors.rim);
+      grad.addColorStop(1, colors.core);
       ctx.beginPath();
       ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = color;
+      ctx.fillStyle = grad;
       ctx.fill();
-      ctx.strokeStyle = "#ffffff22";
-      ctx.lineWidth = 1;
+
+      // Bright rim
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
+      ctx.strokeStyle = `rgba(${colors.glow}, ${isHovered ? 0.8 : 0.35})`;
+      ctx.lineWidth = isHovered ? 2 : 1;
       ctx.stroke();
 
+      // Inner highlight (gloss)
+      const glossGrad = ctx.createRadialGradient(
+        n.x - radius * 0.25, n.y - radius * 0.35, 0,
+        n.x - radius * 0.25, n.y - radius * 0.35, radius * 0.7
+      );
+      glossGrad.addColorStop(0, "rgba(255,255,255,0.25)");
+      glossGrad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = glossGrad;
+      ctx.fill();
+
       // Label
-      const fontSize = Math.max(10 / globalScale, 3);
-      ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+      const fontSize = Math.max(11 / globalScale, 3);
+      ctx.font = `600 ${fontSize}px "Inter", "SF Pro Display", system-ui, sans-serif`;
       ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#f1f5f9";
-      ctx.fillText(n.label, n.x, n.y + radius + fontSize + 1);
+      ctx.textBaseline = "top";
+
+      // Label shadow
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillText(n.label, n.x + 0.5, n.y + radius + 3.5);
+
+      // Label text
+      ctx.fillStyle = isHovered ? "#ffffff" : "#cbd5e1";
+      ctx.fillText(n.label, n.x, n.y + radius + 3);
+    },
+    []
+  );
+
+  const paintLink = useCallback(
+    (link: object, ctx: CanvasRenderingContext2D) => {
+      const l = link as { source: { x: number; y: number }; target: { x: number; y: number } };
+      if (!l.source.x || !l.target.x) return;
+
+      const grad = ctx.createLinearGradient(l.source.x, l.source.y, l.target.x, l.target.y);
+      grad.addColorStop(0, "rgba(99, 102, 241, 0.35)");
+      grad.addColorStop(0.5, "rgba(139, 92, 246, 0.2)");
+      grad.addColorStop(1, "rgba(99, 102, 241, 0.35)");
+
+      ctx.beginPath();
+      ctx.moveTo(l.source.x, l.source.y);
+      ctx.lineTo(l.target.x, l.target.y);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Animated particle along link
+      const t = (tickCount * 0.008) % 1;
+      const px = l.source.x + (l.target.x - l.source.x) * t;
+      const py = l.source.y + (l.target.y - l.source.y) * t;
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
+      ctx.fillStyle = "rgba(165, 180, 252, 0.6)";
+      ctx.fill();
     },
     []
   );
@@ -88,22 +169,20 @@ export default function ForceGraph() {
       graphData={graphData}
       width={dimensions.width}
       height={dimensions.height}
-      backgroundColor="#0f172a"
+      backgroundColor="rgba(0,0,0,0)"
       nodeCanvasObject={paintNode}
       nodePointerAreaPaint={(node, color, ctx) => {
-        const n = node as NodeData & { x: number; y: number };
-        const radius = Math.sqrt(n.val) * 4;
+        const nd = node as NodeData & { x: number; y: number };
+        const radius = Math.sqrt(nd.val) * 4 + 6;
         ctx.beginPath();
-        ctx.arc(n.x, n.y, radius + 4, 0, 2 * Math.PI);
+        ctx.arc(nd.x, nd.y, radius, 0, 2 * Math.PI);
         ctx.fillStyle = color;
         ctx.fill();
       }}
+      linkCanvasObject={paintLink}
       onNodeClick={handleNodeClick}
-      linkColor={() => "#334155"}
-      linkWidth={1.5}
-      linkDirectionalArrowLength={4}
-      linkDirectionalArrowRelPos={1}
-      cooldownTicks={100}
+      onNodeHover={handleNodeHover}
+      cooldownTicks={120}
       enableNodeDrag={true}
       enableZoomInteraction={true}
     />
